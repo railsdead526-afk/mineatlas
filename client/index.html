@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MineAtlas — Platform download mod, addon, shader, resource pack, dan map Minecraft Java & Bedrock Edition.">
+    <meta name="theme-color" content="#0D0D0D">
+    <title>MineAtlas — Platform Minecraft</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+    <!-- ==================== NAVBAR ==================== -->
+    <header class="navbar" id="navbar">
+        <div class="container nav-inner">
+            <a href="index.html" class="nav-brand">
+                <div class="brand-icon">
+                    <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+                        <rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/>
+                        <rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/>
+                        <rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/>
+                        <rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/>
+                    </svg>
+                </div>
+                <span class="brand-text">Mine<span class="text-orange">Atlas</span></span>
+            </a>
+            <div class="nav-search">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" placeholder="Cari mod, addon, shader..." class="search-input">
+            </div>
+            <nav class="nav-menu">
+                <a href="index.html" class="nav-link active">Beranda</a>
+                <a href="pages/browse.html" class="nav-link">Jelajahi</a>
+                <a href="pages/trending.html" class="nav-link">Trending</a>
+                <a href="pages/creator.html" class="nav-link">Kreator</a>
+            </nav>
+            <div class="nav-actions" id="navActions">
+                <a href="pages/login.html" class="btn btn-ghost">Masuk</a>
+                <a href="pages/register.html" class="btn btn-primary">Daftar</a>
+            </div>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==================== MOBILE MENU ==================== -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-search-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input type="text" placeholder="Cari...">
+        </div>
+        <a href="index.html" class="mobile-link active">Beranda</a>
+        <a href="pages/browse.html" class="mobile-link">Jelajahi</a>
+        <a href="pages/trending.html" class="mobile-link">Trending</a>
+        <a href="pages/creator.html" class="mobile-link">Kreator</a>
+        <div class="mobile-actions" id="mobileActions">
+            <a href="pages/login.html" class="btn btn-ghost btn-full">Masuk</a>
+            <a href="pages/register.html" class="btn btn-primary btn-full">Daftar</a>
+        </div>
+    </div>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <!-- ==================== KONTEN UTAMA ==================== -->
+    <main>
+
+        <section class="hero">
+            <div class="container hero-content">
+                <span class="hero-badge">🚀 Platform Resmi Konten Minecraft Indonesia</span>
+                <h1 class="hero-title">Temukan <span class="text-gradient">Ribuan</span> Konten Minecraft Terbaik</h1>
+                <p class="hero-desc">Download mod, addon, shader, resource pack, map, dan plugin untuk <strong>Java Edition</strong> & <strong>Bedrock Edition</strong>. Gratis, aman, dan selalu update.</p>
+                <div class="hero-search">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" placeholder="Cari mod, addon, shader, map...">
+                    <button class="btn btn-primary">Cari</button>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-item"><span class="stat-number">12,000+</span><span class="stat-label">Konten</span></div>
+                    <div class="stat-item"><span class="stat-number">5.2M+</span><span class="stat-label">Download</span></div>
+                    <div class="stat-item"><span class="stat-number">3,500+</span><span class="stat-label">Kreator</span></div>
+                </div>
+            </div>
+            <div class="hero-bg-glow"></div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-header"><h2 class="section-title">Kategori Populer</h2><a href="pages/browse.html" class="section-link">Lihat Semua →</a></div>
+                <div class="category-grid">
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">🧩</div><h3>Mods</h3><p>Java Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">📦</div><h3>Modpacks</h3><p>Java Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">🎨</div><h3>Resource Packs</h3><p>Java & Bedrock</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">✨</div><h3>Shaders</h3><p>Java Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">🗺️</div><h3>Maps</h3><p>Java Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">🔌</div><h3>Plugins</h3><p>Java Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">➕</div><h3>Add-ons</h3><p>Bedrock Edition</p></a>
+                    <a href="pages/browse.html" class="category-card"><div class="category-icon">🌍</div><h3>Worlds</h3><p>Bedrock Edition</p></a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-header"><h2 class="section-title">Terbaru</h2><a href="pages/browse.html" class="section-link">Lihat Semua →</a></div>
+                <div class="project-grid">
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Mod+1" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Epic Craft Mod</h4><p class="project-author">oleh DiamondDev</p><p class="project-meta">⚡ 125K downloads • 2 hari lalu</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Shader+1" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Ultra Realistic Shader</h4><p class="project-author">oleh PixelMaster</p><p class="project-meta">⚡ 89K downloads • 5 jam lalu</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Addon+1" alt="Project"><span class="project-badge badge-bedrock">Bedrock</span></div><div class="project-info"><h4>Furniture Add-on</h4><p class="project-author">oleh CraftyBee</p><p class="project-meta">⚡ 56K downloads • 1 hari lalu</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Map+1" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Parkour Paradise Map</h4><p class="project-author">oleh JumpKing</p><p class="project-meta">⚡ 210K downloads • 3 hari lalu</p></div></article></a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <div class="section-header"><h2 class="section-title">Paling Populer</h2><a href="pages/browse.html" class="section-link">Lihat Semua →</a></div>
+                <div class="project-grid">
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Popular+1" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>OptiFine HD</h4><p class="project-author">oleh sp614x</p><p class="project-meta">⚡ 5.2M downloads</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Popular+2" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>JourneyMap</h4><p class="project-author">oleh techbrew</p><p class="project-meta">⚡ 3.1M downloads</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Popular+3" alt="Project"><span class="project-badge badge-bedrock">Bedrock</span></div><div class="project-info"><h4>True Survival Add-on</h4><p class="project-author">oleh BedrockKing</p><p class="project-meta">⚡ 980K downloads</p></div></article></a>
+                    <a href="pages/project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Popular+4" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Faithful Resource Pack</h4><p class="project-author">oleh Faithful Team</p><p class="project-meta">⚡ 4.7M downloads</p></div></article></a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-grid">
+            <div class="footer-col footer-brand-col">
+                <div class="brand-icon"><svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/><rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/></svg></div>
+                <p>Platform download konten Minecraft Java & Bedrock Edition terbaik di Indonesia.</p>
+            </div>
+            <div class="footer-col"><h4>Jelajahi</h4><a href="pages/browse.html">Java Edition</a><a href="pages/browse.html">Bedrock Edition</a><a href="pages/trending.html">Terpopuler</a><a href="pages/browse.html">Terbaru</a></div>
+            <div class="footer-col"><h4>Komunitas</h4><a href="pages/creator.html">Kreator</a><a href="#">Discord</a><a href="#">GitHub</a></div>
+            <div class="footer-col"><h4>MineAtlas</h4><a href="pages/about.html">Tentang</a><a href="pages/privacy.html">Privasi</a><a href="pages/terms.html">Ketentuan</a><a href="pages/contact.html">Kontak</a></div>
+        </div>
+        <div class="footer-bottom container"><p>&copy; 2024 MineAtlas. Tidak berafiliasi dengan Mojang atau Microsoft.</p></div>
+    </footer>
+    
+    <script src="js/main.js"></script>
+    <script>
+    // Cek status login
+    async function checkLogin() {
+        try {
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
+            if (res.ok) {
+                const user = await res.json();
+                // Update navbar desktop
+                document.getElementById('navActions').innerHTML = 
+                    '<span style="color: var(--text); font-size: 0.85rem; margin-right: 8px;">👤 ' + user.username + '</span>' +
+                    '<a href="#" class="btn btn-ghost" onclick="logout()">Keluar</a>';
+                // Update mobile menu
+                document.getElementById('mobileActions').innerHTML = 
+                    '<p style="color: var(--text); padding: 8px;">👤 ' + user.username + '</p>' +
+                    '<a href="#" class="btn btn-ghost btn-full" onclick="logout()">Keluar</a>';
+            }
+        } catch (err) {}
+    }
+
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        window.location.reload();
+    }
+
+    checkLogin();
+    </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jelajahi — MineAtlas</title>
+    <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="container nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="brand-icon"><svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/><rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/></svg></div>
+                <span class="brand-text">Mine<span class="text-orange">Atlas</span></span>
+            </a>
+            <div class="nav-search"><svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Cari mod, addon, shader..." class="search-input"></div>
+            <nav class="nav-menu">
+                <a href="../index.html" class="nav-link">Beranda</a>
+                <a href="browse.html" class="nav-link active">Jelajahi</a>
+                <a href="trending.html" class="nav-link">Trending</a>
+                <a href="creator.html" class="nav-link">Kreator</a>
+            </nav>
+            <div class="nav-actions">
+                <a href="login.html" class="btn btn-ghost">Masuk</a>
+                <a href="register.html" class="btn btn-primary">Daftar</a>
+            </div>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+        </div>
+    </header>
+
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-search-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Cari..."></div>
+        <a href="../index.html" class="mobile-link">Beranda</a>
+        <a href="browse.html" class="mobile-link active">Jelajahi</a>
+        <a href="trending.html" class="mobile-link">Trending</a>
+        <a href="creator.html" class="mobile-link">Kreator</a>
+        <div class="mobile-actions">
+            <a href="login.html" class="btn btn-ghost btn-full">Masuk</a>
+            <a href="register.html" class="btn btn-primary btn-full">Daftar</a>
+        </div>
+    </div>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main>
+        <section class="section" style="padding-bottom: 0;">
+            <div class="container">
+                <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 8px;">Jelajahi Konten</h1>
+                <p style="color: var(--text-secondary); max-width: 600px; margin-bottom: 16px;">Temukan ribuan mod, addon, shader, resource pack, map, dan plugin untuk Minecraft Java & Bedrock Edition.</p>
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 9999px; padding: 10px 20px; display: flex; align-items: center; gap: 10px; max-width: 500px; margin-bottom: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="browseSearch" placeholder="Cari proyek..." style="background: none; border: none; outline: none; color: var(--text); font-size: 0.9rem; font-family: inherit; width: 100%;">
+                </div>
+            </div>
+        </section>
+
+        <section style="position: sticky; top: 64px; z-index: 100; background: rgba(20,20,20,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 16px 0; margin-bottom: 20px;">
+            <div class="container" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+                <div style="display: flex; flex-direction: column; gap: 4px; min-width: 140px;"><label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Kategori</label><select id="filterKategori" style="background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; font-family: inherit;"><option value="">Semua Kategori</option><option value="mods">Mods</option><option value="modpacks">Modpacks</option><option value="plugins">Plugins</option><option value="shaders">Shaders</option><option value="maps">Maps</option><option value="addons">Add-ons</option></select></div>
+                <div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;"><label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Versi</label><select style="background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; font-family: inherit;"><option value="">Semua Versi</option><option value="1.21">1.21</option><option value="1.20">1.20</option><option value="1.19">1.19</option><option value="1.18">1.18</option></select></div>
+                <div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;"><label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Edition</label><select style="background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; font-family: inherit;"><option value="">Semua</option><option value="java">Java Edition</option><option value="bedrock">Bedrock Edition</option></select></div>
+                <button class="btn btn-primary" style="height: 42px;">Terapkan</button>
+                <button class="btn btn-ghost" style="height: 42px;">Reset</button>
+            </div>
+        </section>
+
+        <section class="section" style="padding-top: 0;">
+            <div class="container">
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">Menampilkan <strong style="color: var(--text);" id="projectCount">0</strong> hasil</p>
+                <div class="project-grid" id="projectGrid">
+                    <p style="color: var(--text-secondary);">Memuat data...</p>
+                </div>
+                <div style="display: flex; justify-content: center; gap: 6px; margin-top: 40px; flex-wrap: wrap;" id="paginationContainer"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-grid">
+            <div class="footer-col footer-brand-col"><div class="brand-icon"><svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/><rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/></svg></div><p>Platform download konten Minecraft Java & Bedrock Edition terbaik di Indonesia.</p></div>
+            <div class="footer-col"><h4>Jelajahi</h4><a href="browse.html">Java Edition</a><a href="browse.html">Bedrock Edition</a><a href="trending.html">Terpopuler</a><a href="browse.html">Terbaru</a></div>
+            <div class="footer-col"><h4>Komunitas</h4><a href="creator.html">Kreator</a><a href="#">Discord</a><a href="#">GitHub</a></div>
+            <div class="footer-col"><h4>MineAtlas</h4><a href="about.html">Tentang</a><a href="privacy.html">Privasi</a><a href="terms.html">Ketentuan</a><a href="contact.html">Kontak</a></div>
+        </div>
+        <div class="footer-bottom container"><p>&copy; 2024 MineAtlas. Tidak berafiliasi dengan Mojang atau Microsoft.</p></div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script>
+    async function loadProjects() {
+        try {
+            const res = await fetch('/api/projects');
+            const projects = await res.json();
+            const grid = document.getElementById('projectGrid');
+            const count = document.getElementById('projectCount');
+            
+            count.textContent = projects.length;
+            grid.innerHTML = projects.map(function(p) {
+                return '<a href="project.html" style="text-decoration: none; color: inherit;">' +
+                    '<article class="project-card">' +
+                    '<div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=' + encodeURIComponent(p.title) + '" alt="Project"><span class="project-badge' + (p.edition === 'Bedrock Edition' ? ' badge-bedrock' : '') + '">' + (p.edition === 'Bedrock Edition' ? 'Bedrock' : 'Java') + '</span></div>' +
+                    '<div class="project-info"><h4>' + p.title + '</h4><p class="project-author">oleh ' + p.author + '</p><p class="project-meta">⚡ ' + p.downloads + ' downloads • ' + p.version + '</p></div>' +
+                    '</article></a>';
+            }).join('');
+        } catch (err) {
+            document.getElementById('projectGrid').innerHTML = '<p style="color: var(--error);">Gagal memuat data.</p>';
+        }
+    }
+    loadProjects();
+    </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JellySquid — MineAtlas</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <style>
+        .profile-banner { width: 100%; height: 200px; overflow: hidden; background: var(--bg-card); border-bottom: 2px solid var(--border); }
+        .profile-banner img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-header { display: flex; gap: 24px; padding: 0 0 32px; margin-top: -48px; position: relative; z-index: 2; }
+        .profile-avatar-wrap { flex-shrink: 0; }
+        .profile-avatar { width: 110px; height: 110px; border-radius: 50%; border: 4px solid var(--bg-base); object-fit: cover; box-shadow: var(--shadow-md); }
+        .profile-info { flex: 1; padding-top: 52px; }
+        .profile-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .profile-name { font-size: 1.6rem; font-weight: 800; }
+        .profile-role { padding: 4px 12px; background: var(--orange-glow); border: 1px solid var(--orange); border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 700; color: var(--orange); }
+        .profile-username { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 8px; }
+        .profile-bio { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; max-width: 600px; margin-bottom: 16px; }
+        .profile-stats { display: flex; gap: 28px; margin-bottom: 12px; }
+        .profile-stat { text-align: center; }
+        .stat-num { display: block; font-size: 1.1rem; font-weight: 700; }
+        .stat-lbl { font-size: 0.75rem; color: var(--text-muted); }
+        .profile-joined { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px; }
+        .profile-actions { display: flex; gap: 8px; }
+        .profile-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+        .profile-tab { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; font-family: inherit; cursor: pointer; }
+        .profile-tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+        @media (max-width: 768px) { .profile-banner { height: 140px; } .profile-header { flex-direction: column; align-items: center; text-align: center; margin-top: -40px; } .profile-avatar { width: 90px; height: 90px; } .profile-info { padding-top: 8px; } .profile-name { font-size: 1.3rem; } .profile-stats { justify-content: center; gap: 20px; } .profile-actions { justify-content: center; } }
+    </style>
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="container nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="brand-icon"><svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/><rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/></svg></div>
+                <span class="brand-text">Mine<span class="text-orange">Atlas</span></span>
+            </a>
+            <div class="nav-search"><svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Cari mod, addon, shader..." class="search-input"></div>
+            <nav class="nav-menu">
+                <a href="../index.html" class="nav-link">Beranda</a>
+                <a href="browse.html" class="nav-link">Jelajahi</a>
+                <a href="trending.html" class="nav-link">Trending</a>
+                <a href="creator.html" class="nav-link active">Kreator</a>
+            </nav>
+            <div class="nav-actions">
+                <a href="login.html" class="btn btn-ghost">Masuk</a>
+                <a href="register.html" class="btn btn-primary">Daftar</a>
+            </div>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+        </div>
+    </header>
+
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-search-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" placeholder="Cari..."></div>
+        <a href="../index.html" class="mobile-link">Beranda</a>
+        <a href="browse.html" class="mobile-link">Jelajahi</a>
+        <a href="trending.html" class="mobile-link">Trending</a>
+        <a href="creator.html" class="mobile-link active">Kreator</a>
+        <div class="mobile-actions">
+            <a href="login.html" class="btn btn-ghost btn-full">Masuk</a>
+            <a href="register.html" class="btn btn-primary btn-full">Daftar</a>
+        </div>
+    </div>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main>
+        <div class="profile-banner"><img src="https://placehold.co/1200x300/1a1a1a/F1641E?text=Banner" alt="Banner"></div>
+        <div class="container">
+            <div class="profile-header">
+                <div class="profile-avatar-wrap"><img src="https://placehold.co/120x120/1e1e1e/FF8A3D?text=JS" alt="Avatar" class="profile-avatar"></div>
+                <div class="profile-info">
+                    <div class="profile-name-row"><h1 class="profile-name">JellySquid</h1><span class="profile-role">Creator</span></div>
+                    <p class="profile-username">@jellysquid</p>
+                    <p class="profile-bio">Developer Minecraft mods. Creator of Sodium, Lithium, dan Phosphor.</p>
+                    <div class="profile-stats">
+                        <div class="profile-stat"><span class="stat-num">12</span><span class="stat-lbl">Proyek</span></div>
+                        <div class="profile-stat"><span class="stat-num">5.2M</span><span class="stat-lbl">Downloads</span></div>
+                        <div class="profile-stat"><span class="stat-num">50K</span><span class="stat-lbl">Followers</span></div>
+                        <div class="profile-stat"><span class="stat-num">28</span><span class="stat-lbl">Following</span></div>
+                    </div>
+                    <p class="profile-joined">📅 Bergabung sejak 15 Maret 2020</p>
+                    <div class="profile-actions"><button class="btn btn-primary">+ Follow</button><button class="btn btn-ghost">🔗 Share</button></div>
+                </div>
+            </div>
+            <div class="profile-tabs"><button class="profile-tab active">Proyek</button><button class="profile-tab">Tentang</button></div>
+            <div class="project-grid" style="padding-bottom: 40px;">
+                <a href="project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Sodium" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Sodium Performance Mod</h4><p class="project-author">Mods • 2.1M downloads</p><p class="project-meta">⭐ 4.9 • 💬 342</p></div></article></a>
+                <a href="project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Lithium" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Lithium Optimization</h4><p class="project-author">Mods • 1.5M downloads</p><p class="project-meta">⭐ 4.7 • 💬 198</p></div></article></a>
+                <a href="project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/F1641E?text=Phosphor" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Phosphor Lighting</h4><p class="project-author">Mods • 980K downloads</p><p class="project-meta">⭐ 4.5 • 💬 127</p></div></article></a>
+                <a href="project.html" style="text-decoration: none; color: inherit;"><article class="project-card"><div class="project-thumb"><img src="https://placehold.co/600x400/1e1e1e/FF8A3D?text=Indium" alt="Project"><span class="project-badge">Java</span></div><div class="project-info"><h4>Indium Renderer</h4><p class="project-author">Mods • 650K downloads</p><p class="project-meta">⭐ 4.6 • 💬 89</p></div></article></a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-grid">
+            <div class="footer-col footer-brand-col"><div class="brand-icon"><svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="#F1641E"/><rect x="18" y="2" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="2" y="18" width="12" height="12" rx="3" fill="#FF8A3D"/><rect x="18" y="18" width="12" height="12" rx="3" fill="#F1641E"/></svg></div><p>Platform download konten Minecraft Java & Bedrock Edition terbaik di Indonesia.</p></div>
+            <div class="footer-col"><h4>Jelajahi</h4><a href="browse.html">Java Edition</a><a href="browse.html">Bedrock Edition</a><a href="trending.html">Terpopuler</a><a href="browse.html">Terbaru</a></div>
+            <div class="footer-col"><h4>Komunitas</h4><a href="creator.html">Kreator</a><a href="#">Discord</a><a href="#">GitHub</a></div>
+            <div class="footer-col"><h4>MineAtlas</h4><a href="about.html">Tentang</a><a href="privacy.html">Privasi</a><a href="terms.html">Ketentuan</a><a href="contact.html">Kontak</a></div>
+        </div>
+        <div class="footer-bottom container"><p>&copy; 2024 MineAtlas. Tidak berafiliasi dengan Mojang atau Microsoft.</p></div>
+    </footer>
+
+<script src="../js/main.js"></script>
+
+</body>
+</html>

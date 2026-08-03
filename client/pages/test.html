@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test</title>
+</head>
+<body style="background: #0D0D0D; color: #fff; padding: 20px;">
+    <h1>Test Fetch</h1>
+    <button id="btn" style="padding: 20px; font-size: 18px;">KLIK SAYA</button>
+    <p id="hasil" style="margin-top: 20px;"></p>
+
+    <script>
+    document.getElementById('btn').addEventListener('click', async function() {
+        document.getElementById('hasil').textContent = 'Mengirim...';
+        try {
+            const res = await fetch('http://192.168.0.100:3000/api')
+            const data = await res.json();
+            document.getElementById('hasil').textContent = 'BERHASIL: ' + JSON.stringify(data);
+            document.getElementById('hasil').style.color = '#22C55E';
+        } catch (err) {
+            document.getElementById('hasil').textContent = 'GAGAL: ' + err.message;
+            document.getElementById('hasil').style.color = 'red';
+        }
+    });
+    </script>
+</body>
+</html>
