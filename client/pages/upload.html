@@ -79,8 +79,6 @@
     </footer>
 
     <script>
-    const API = 'https://mineatlas-production.up.railway.app';
-
     document.getElementById('uploadForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const errorDiv = document.getElementById('uploadError');
@@ -89,7 +87,7 @@
         successDiv.style.display = 'none';
         const formData = new FormData(this);
         try {
-            const res = await fetch(API + '/api/upload', {
+            const res = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'

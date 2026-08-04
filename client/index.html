@@ -91,11 +91,9 @@
     
     <script src="js/main.js"></script>
     <script>
-    const API = 'https://mineatlas-production.up.railway.app';
-
     async function checkLogin() {
         try {
-            const res = await fetch(API + '/api/auth/me', { credentials: 'include' });
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
             if (res.ok) {
                 const user = await res.json();
                 document.getElementById('navActions').innerHTML = 
@@ -109,7 +107,7 @@
     }
 
     async function logout() {
-        await fetch(API + '/api/auth/logout', { method: 'POST', credentials: 'include' });
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
         window.location.reload();
     }
 

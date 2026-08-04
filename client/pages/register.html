@@ -91,8 +91,6 @@
     </footer>
 
     <script>
-    const API = 'https://mineatlas-production.up.railway.app';
-
     document.getElementById('registerForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const username = document.getElementById('regUsername').value;
@@ -115,7 +113,7 @@
             errorDiv.style.display = 'block'; return;
         }
         try {
-            const response = await fetch(API + '/api/auth/register', {
+            const response = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, email, password }),
