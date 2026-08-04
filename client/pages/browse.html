@@ -87,10 +87,13 @@
 
     <script src="../js/main.js"></script>
     <script>
+    const API = 'https://mineatlas-production.up.railway.app';
+
     async function loadProjects() {
         try {
-            const res = await fetch('/api/projects');
-            const projects = await res.json();
+            const res = await fetch(API + '/api/projects');
+            const data = await res.json();
+            const projects = data.items || data;
             const grid = document.getElementById('projectGrid');
             const count = document.getElementById('projectCount');
             

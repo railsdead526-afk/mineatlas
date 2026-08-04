@@ -46,55 +46,23 @@
     <main>
         <div class="upload-container">
             <h1>Upload Project</h1>
-            
             <form id="uploadForm" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label>Nama Project *</label>
-                    <input type="text" name="title" class="form-input" placeholder="Nama project kamu" required>
-                </div>
-                <div class="form-group">
-                    <label>Deskripsi *</label>
-                    <textarea name="description" class="form-textarea" placeholder="Jelaskan project kamu..." required></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Kategori *</label>
-                    <select name="category" class="form-select" required>
-                        <option value="">Pilih Kategori</option>
-                        <option value="Mods">Mods</option>
-                        <option value="Modpacks">Modpacks</option>
-                        <option value="Plugins">Plugins</option>
-                        <option value="Shaders">Shaders</option>
-                        <option value="Maps">Maps</option>
-                        <option value="Add-ons">Add-ons</option>
-                        <option value="Resource Packs">Resource Packs</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Versi Minecraft *</label>
-                    <input type="text" name="version" class="form-input" placeholder="1.21" required>
-                </div>
+                <div class="form-group"><label>Nama Project *</label><input type="text" name="title" class="form-input" placeholder="Nama project kamu" required></div>
+                <div class="form-group"><label>Deskripsi *</label><textarea name="description" class="form-textarea" placeholder="Jelaskan project kamu..." required></textarea></div>
+                <div class="form-group"><label>Kategori *</label><select name="category" class="form-select" required><option value="">Pilih Kategori</option><option value="Mods">Mods</option><option value="Modpacks">Modpacks</option><option value="Plugins">Plugins</option><option value="Shaders">Shaders</option><option value="Maps">Maps</option><option value="Add-ons">Add-ons</option><option value="Resource Packs">Resource Packs</option></select></div>
+                <div class="form-group"><label>Versi Minecraft *</label><input type="text" name="version" class="form-input" placeholder="1.21" required></div>
                 <div class="form-group">
                     <label>Thumbnail</label>
-                    <div class="file-upload-box" onclick="document.getElementById('thumbnail').click()">
-                        <p>🖼️ Klik untuk upload thumbnail</p>
-                        <small style="color: var(--text-muted);">PNG, JPG (max 2MB)</small>
-                        <span id="thumbName" style="display: block; color: var(--orange); margin-top: 8px;"></span>
-                    </div>
+                    <div class="file-upload-box" onclick="document.getElementById('thumbnail').click()"><p>🖼️ Klik untuk upload thumbnail</p><small style="color: var(--text-muted);">PNG, JPG (max 2MB)</small><span id="thumbName" style="display: block; color: var(--orange); margin-top: 8px;"></span></div>
                     <input type="file" name="thumbnail" id="thumbnail" accept="image/*" onchange="document.getElementById('thumbName').textContent = this.files[0].name">
                 </div>
                 <div class="form-group">
                     <label>File Project *</label>
-                    <div class="file-upload-box" onclick="document.getElementById('projectFile').click()">
-                        <p>📦 Klik untuk upload file</p>
-                        <small style="color: var(--text-muted);">.mcpack, .mcaddon, .zip (max 50MB)</small>
-                        <span id="fileName" style="display: block; color: var(--orange); margin-top: 8px;"></span>
-                    </div>
+                    <div class="file-upload-box" onclick="document.getElementById('projectFile').click()"><p>📦 Klik untuk upload file</p><small style="color: var(--text-muted);">.mcpack, .mcaddon, .zip (max 50MB)</small><span id="fileName" style="display: block; color: var(--orange); margin-top: 8px;"></span></div>
                     <input type="file" name="file" id="projectFile" required onchange="document.getElementById('fileName').textContent = this.files[0].name">
                 </div>
-
                 <div id="uploadError"></div>
                 <div id="uploadSuccess"></div>
-
                 <button type="submit" class="btn btn-primary btn-upload">Upload Project</button>
             </form>
         </div>
@@ -111,17 +79,17 @@
     </footer>
 
     <script>
+    const API = 'https://mineatlas-production.up.railway.app';
+
     document.getElementById('uploadForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const errorDiv = document.getElementById('uploadError');
         const successDiv = document.getElementById('uploadSuccess');
         errorDiv.style.display = 'none';
         successDiv.style.display = 'none';
-
         const formData = new FormData(this);
-
         try {
-            const res = await fetch('/api/upload', {
+            const res = await fetch(API + '/api/upload', {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'
