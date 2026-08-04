@@ -13,7 +13,18 @@ const authRoute = require('./routes/auth');
 const uploadRoute = require('./routes/upload');
 const usersRoute = require('./routes/users');
 
-app.use(cors({ origin: true, credentials: true }));
+// CORS — izinkan Cloudflare Pages
+app.use(cors({
+    origin: [
+        'https://7e978130.mineatlas.pages.dev',
+        'https://mineatlas.pages.dev'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors());
+
 app.use(express.json());
 app.use(cookieParser());
 
