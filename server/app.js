@@ -30,6 +30,21 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '..', 'client')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Auto-init database saat server start
+const { getDatabase, saveDatabase } = require('./config/database');
+(async function() {
+    const db = await getDatabase();
+    db.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, email TEXT UNIQUE, password TEXT, avatar TEXT, role TEXT DEFAULT \'user\', created_at TEXT DEFAULT (datetime(\'now\')))');
+    db.run('CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, slug TEXT UNIQUE)');
+    db.run('CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, slug TEXT UNIQUE, description TEXT, category TEXT, edition TEXT, version TEXT, author TEXT, thumbnail TEXT, download_url TEXT, downloads INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime(\'now\')))');
+    db.run('CREATE TABLE IF NOT EXISTS ratings (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, user_id INTEGER, rating INTEGER, created_at TEXT DEFAULT (datetime(\'now\')), UNIQUE(project_id, user_id))');
+    db.run('CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, user_id INTEGER, comment TEXT, created_at TEXT DEFAULT (datetime(\'now\')), updated_at TEXT DEFAULT (datetime(\'now\')))');
+    db.run('CREATE TABLE IF NOT EXISTS favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, project_id INTEGER, created_at TEXT DEFAULT (datetime(\'now\')), UNIQUE(user_id, project_id))');
+    saveDatabase(db);
+    db.close();
+    console.log('Database siap');
+})();
+
 app.get('/api', function(req, res) {
     res.json({ status: 'ok', message: 'MineAtlas API Running' });
 });
