@@ -80,7 +80,7 @@ router.post('/login', async function(req, res) {
 
     db.close();
 
-    // Cookie untuk cross-origin (Cloudflare Pages + Railway)
+    // Kirim token di BODY (untuk localStorage) + COOKIE (untuk backend)
     res.cookie('token', token, {
         httpOnly: true,
         secure: true,
@@ -90,6 +90,7 @@ router.post('/login', async function(req, res) {
 
     res.json({
         message: 'Login berhasil!',
+        token: token,
         user: {
             id: user.id,
             username: user.username,
@@ -109,12 +110,23 @@ router.post('/logout', function(req, res) {
     res.json({ message: 'Logout berhasil!' });
 });
 
-// GET /api/auth/me — Cek status login
-router.get('/me', authenticateToken, function(req, res) {
-    res.json({
-        id: req.user.id,
-        username: req.user.username,
-        role: req.user.role
+// GET /api/auth/me — Cek status login (support Authorization header)
+router.get('/me', function(req, res) {
+    // Cek dari cookie dulu
+    const tokenFromCookie = req.cookies && req.cookies.token;
+    // Atau dari Authorization header
+    const authHeader = req.headers['authorization'];
+    const tokenFromHeader = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    
+    const token = tokenFromCookie || tokenFromHeader;
+    
+    if (!token) {
+        return res.status(401).json({ error: 'Silakan login terlebih dahulu' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, function(err, decoded) {
+        if (err) return res.status(403).json({ error: 'Token tidak valid' });
+        res.json({ id: decoded.id, username: decoded.username, role: decoded.role });
     });
 });
 
