@@ -80,8 +80,11 @@ router.post('/login', async function(req, res) {
 
     db.close();
 
+    // Cookie untuk cross-origin (Cloudflare Pages + Railway)
     res.cookie('token', token, {
         httpOnly: true,
+        secure: true,
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -98,7 +101,11 @@ router.post('/login', async function(req, res) {
 
 // POST /api/auth/logout — Keluar
 router.post('/logout', function(req, res) {
-    res.clearCookie('token');
+    res.clearCookie('token', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none'
+    });
     res.json({ message: 'Logout berhasil!' });
 });
 
