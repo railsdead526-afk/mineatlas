@@ -1,19 +1,27 @@
 {
   "name": "mineatlas-server",
-  "version": "1.0.0",
-  "description": "MineAtlas Backend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "MineAtlas production API",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "db:init": "node database/init.js",
+    "db:seed": "node database/seed.js",
+    "check": "node --check app.js && node --check config/database.js && node --check middleware/auth.js && node --check routes/auth.js && node --check routes/categories.js && node --check routes/projects.js && node --check routes/upload.js && node --check routes/users.js"
   },
+  "engines": { "node": ">=20" },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
-    "sql.js": "^1.12.0"
+    "pg": "^8.16.3"
   }
 }

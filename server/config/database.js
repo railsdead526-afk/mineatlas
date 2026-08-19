@@ -1,34 +1,36 @@
-// ============================================
-// MINEATLAS — DATABASE CONFIG (sql.js)
-// ============================================
+const { Pool } = require('pg');
 
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL wajib diisi.');
 
-const dbPath = path.join(__dirname, '..', 'database', 'mineatlas.db');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: Math.max(1, Number(process.env.DB_POOL_MAX || 10)),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
-// Fungsi untuk mendapatkan database
-async function getDatabase() {
-    const SQL = await initSqlJs();
-    
-    let db;
-    if (fs.existsSync(dbPath)) {
-        const buffer = fs.readFileSync(dbPath);
-        db = new SQL.Database(buffer);
-    } else {
-        db = new SQL.Database();
+pool.on('error', err => console.error('PostgreSQL pool error:', err));
+
+async function query(text, params = []) { return pool.query(text, params); }
+async function queryRows(text, params = []) { return (await pool.query(text, params)).rows; }
+async function queryOne(text, params = []) { return (await pool.query(text, params)).rows[0] || null; }
+async function run(text, params = []) { return pool.query(text, params); }
+
+async function transaction(callback) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
-    
-    console.log('Database terhubung');
-    return db;
 }
 
-// Fungsi untuk menyimpan database ke file
-function saveDatabase(db) {
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
-}
-
-module.exports = { getDatabase, saveDatabase };
+async function closeDatabase() { await pool.end(); }
+module.exports = { pool, query, queryRows, queryOne, run, transaction, closeDatabase };

@@ -1,119 +1,91 @@
+require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
-const fs = require('fs');
-
-require('dotenv').config();
+const rateLimit = require('express-rate-limit');
+const { query, closeDatabase } = require('./config/database');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// =========================
-// Debug
-// =========================
+const PORT = Number(process.env.PORT || 3000);
 const clientPath = path.join(__dirname, '..', 'client');
 
-console.log('==============================');
-console.log('__dirname :', __dirname);
-console.log('clientPath:', clientPath);
-console.log('exists    :', fs.existsSync(clientPath));
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error('JWT_SECRET wajib diisi dan minimal 32 karakter');
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL wajib diisi');
 
-if (fs.existsSync(clientPath)) {
-    console.log('Client files:', fs.readdirSync(clientPath));
-}
+const origins = (process.env.CLIENT_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(',').map(v => v.trim()).filter(Boolean);
 
-console.log('==============================');
-
-// =========================
-// Routes
-// =========================
-const projectsRoute = require('./routes/projects');
-const categoriesRoute = require('./routes/categories');
-const authRoute = require('./routes/auth');
-const uploadRoute = require('./routes/upload');
-const usersRoute = require('./routes/users');
-
-// =========================
-// Middleware
-// =========================
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
-    origin: [
-        'https://7e978130.mineatlas.pages.dev',
-        'https://mineatlas.pages.dev'
-    ],
+    origin: (origin, cb) => (!origin || origins.includes(origin)) ? cb(null, true) : cb(new Error('CORS origin tidak diizinkan')),
     credentials: true
 }));
-
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
+app.use('/api', rateLimit({
+    windowMs: 60 * 1000,
+    limit: Math.max(1, Number(process.env.API_RATE_LIMIT || 120)),
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Terlalu banyak request. Coba lagi nanti.' }
+}));
 
-// =========================
-// Static Files
-// =========================
+// Cookie-based auth needs a CSRF defense for cross-site deployments.
+app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (/^\/auth\/(login|register|csrf)$/.test(req.path)) return next();
+    const origin = req.get('origin');
+    if (origin && !origins.includes(origin)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
+    const cookieToken = req.cookies?.csrf_token;
+    const headerToken = req.get('x-csrf-token');
+    if (!cookieToken || !headerToken || cookieToken.length !== headerToken.length) return res.status(403).json({ error: 'CSRF token tidak valid' });
+    if (!crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken))) return res.status(403).json({ error: 'CSRF token tidak valid' });
+    next();
+});
+
 app.use(express.static(clientPath));
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Homepage
-app.get('/', (req, res) => {
-    res.sendFile(path.join(clientPath, 'index.html'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { dotfiles: 'deny', index: false, maxAge: '1h' }));
+app.get('/', (req, res) => res.sendFile(path.join(clientPath, 'index.html')));
+app.get('/api', (req, res) => res.json({ status: 'ok', message: 'MineAtlas API Running' }));
+app.get('/api/health', async (req, res) => {
+    try {
+        await query('SELECT 1');
+        res.json({ status: 'ok', database: 'ok', timestamp: new Date().toISOString() });
+    } catch {
+        res.status(503).json({ status: 'error', database: 'unavailable' });
+    }
 });
 
-// =========================
-// Database
-// =========================
-const { getDatabase, saveDatabase } = require('./config/database');
+app.use('/api/projects', require('./routes/projects'));
+app.use('/api/categories', require('./routes/categories'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/upload', require('./routes/upload'));
+app.use('/api/users', require('./routes/users'));
 
-(async () => {
-    const db = await getDatabase();
-
-    db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, email TEXT UNIQUE, password TEXT, avatar TEXT, role TEXT DEFAULT 'user', created_at TEXT DEFAULT (datetime('now')))");
-    db.run("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, slug TEXT UNIQUE)");
-    db.run("CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, slug TEXT UNIQUE, description TEXT, category TEXT, edition TEXT, version TEXT, author TEXT, thumbnail TEXT, download_url TEXT, downloads INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))");
-    db.run("CREATE TABLE IF NOT EXISTS ratings (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, user_id INTEGER, rating INTEGER, created_at TEXT DEFAULT (datetime('now')), UNIQUE(project_id, user_id))");
-    db.run("CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER, user_id INTEGER, comment TEXT, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))");
-    db.run("CREATE TABLE IF NOT EXISTS favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, project_id INTEGER, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, project_id))");
-
-    saveDatabase(db);
-    db.close();
-
-    console.log('✅ Database siap');
-})();
-
-// =========================
-// API
-// =========================
-app.get('/api', (req, res) => {
-    res.json({
-        status: 'ok',
-        message: 'MineAtlas API Running'
-    });
+app.use((err, req, res, next) => {
+    console.error(err);
+    if (err.message?.includes('CORS')) return res.status(403).json({ error: 'Origin tidak diizinkan' });
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Ukuran file terlalu besar' });
+    res.status(500).json({ error: 'Terjadi kesalahan pada server' });
 });
+app.use((req, res) => res.status(404).json({ status: 'error', message: 'Route not found' }));
 
-app.use('/api/projects', projectsRoute);
-app.use('/api/categories', categoriesRoute);
-app.use('/api/auth', authRoute);
-app.use('/api/upload', uploadRoute);
-app.use('/api/users', usersRoute);
+let server;
+if (require.main === module) {
+    server = app.listen(PORT, '0.0.0.0', () => console.log(`MineAtlas API berjalan di port ${PORT}`));
+    const shutdown = async signal => {
+        console.log(`${signal} diterima, menghentikan MineAtlas...`);
+        server.close(async () => {
+            try { await closeDatabase(); } finally { process.exit(0); }
+        });
+    };
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    process.once('SIGINT', () => shutdown('SIGINT'));
+}
 
-// =========================
-// 404
-// =========================
-app.use((req, res) => {
-    res.status(404).json({
-        status: 'error',
-        message: 'Route not found'
-    });
-});
-
-// =========================
-// Start Server
-// =========================
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('=================================');
-    console.log('🚀 MineAtlas Server Berjalan');
-    console.log('=================================');
-    console.log(`PORT     : ${PORT}`);
-    console.log(`CLIENT   : ${clientPath}`);
-});
+module.exports = app;

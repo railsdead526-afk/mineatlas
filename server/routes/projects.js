@@ -1,205 +1,183 @@
 const express = require('express');
-const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { getDatabase, saveDatabase } = require('../config/database');
+const { queryRows, queryOne, run } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
-// GET /api/projects — Search + Filter + Sort + Pagination
-router.get('/', async function(req, res) {
-    const db = await getDatabase();
-    const { q, category, version, author, sort, page, limit } = req.query;
-    const currentPage = parseInt(page) || 1;
-    const perPage = parseInt(limit) || 20;
-    const offset = (currentPage - 1) * perPage;
+const router = express.Router();
+const uploadRoot = path.join(__dirname, '..', 'uploads');
 
-    let where = [];
-    if (q) where.push("(title LIKE '%" + q + "%' OR description LIKE '%" + q + "%' OR author LIKE '%" + q + "%')");
-    if (category) where.push("category = '" + category + "'");
-    if (version) where.push("version = '" + version + "'");
-    if (author) where.push("author = '" + author + "'");
+function projectId(value) {
+    const id = Number.parseInt(value, 10);
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+function pagination(value, fallback, max) {
+    const n = Number.parseInt(value, 10);
+    return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
+}
+function safeName(value) { return value && path.basename(value) === value ? value : null; }
+function deleteUpload(folder, name) {
+    const safe = safeName(name);
+    if (!safe) return;
+    const filePath = path.join(uploadRoot, folder, safe);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+}
 
-    let whereClause = where.length > 0 ? ' WHERE ' + where.join(' AND ') : '';
+const projectSelect = `
+    SELECT p.*, u.username AS author,
+           c.name AS category_name, c.slug AS category_slug,
+           COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0) AS rating,
+           COUNT(DISTINCT r.id)::int AS rating_count,
+           COUNT(DISTINCT f.id)::int AS favorite_count,
+           COALESCE((SELECT json_agg(ps.filename ORDER BY ps.sort_order)
+                     FROM project_screenshots ps WHERE ps.project_id = p.id), '[]'::json) AS screenshots
+    FROM projects p
+    LEFT JOIN users u ON u.id = p.author_id
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN ratings r ON r.project_id = p.id
+    LEFT JOIN favorites f ON f.project_id = p.id
+`;
 
-    let orderBy = ' ORDER BY created_at DESC';
-    if (sort === 'oldest') orderBy = ' ORDER BY created_at ASC';
-    else if (sort === 'downloads') orderBy = ' ORDER BY downloads DESC';
-    else if (sort === 'rating') orderBy = ' ORDER BY (SELECT AVG(rating) FROM ratings WHERE project_id = projects.id) DESC';
-
-    const countResult = db.exec('SELECT COUNT(*) as total FROM projects' + whereClause);
-    let total = 0;
-    if (countResult.length > 0 && countResult[0].values.length > 0) total = countResult[0].values[0][0];
-    const totalPages = Math.ceil(total / perPage);
-
-    const projects = db.exec('SELECT * FROM projects' + whereClause + orderBy + ' LIMIT ' + perPage + ' OFFSET ' + offset);
-    let items = [];
-    if (projects.length > 0) {
-        const columns = projects[0].columns;
-        items = projects[0].values.map(row => {
-            let obj = {};
-            columns.forEach((col, i) => obj[col] = row[i]);
-            return obj;
-        });
-    }
-
-    db.close();
-    res.json({ items, total, page: currentPage, totalPages, hasNext: currentPage < totalPages, hasPrev: currentPage > 1 });
+router.get('/', async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim().slice(0, 120);
+        const category = String(req.query.category || '').trim();
+        const version = String(req.query.version || '').trim();
+        const author = String(req.query.author || '').trim();
+        const page = pagination(req.query.page, 1, 1000000);
+        const limit = pagination(req.query.limit, 20, 100);
+        const offset = (page - 1) * limit;
+        const where = [], params = [];
+        if (q) { params.push(`%${q}%`); where.push(`(p.title ILIKE $${params.length} OR p.description ILIKE $${params.length})`); }
+        if (category) { params.push(category); where.push(`c.slug = $${params.length}`); }
+        if (version) { params.push(version); where.push(`p.version = $${params.length}`); }
+        if (author) { params.push(author); where.push(`u.username = $${params.length}`); }
+        const whereSql = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+        const sorts = { oldest: 'p.created_at ASC', downloads: 'p.downloads DESC', rating: 'COALESCE(AVG(r.rating), 0) DESC', newest: 'p.created_at DESC' };
+        const orderBy = sorts[String(req.query.sort || 'newest')] || sorts.newest;
+        const countRow = await queryOne(`SELECT COUNT(*)::int AS total FROM projects p LEFT JOIN users u ON u.id=p.author_id LEFT JOIN categories c ON c.id=p.category_id${whereSql}`, params);
+        const total = Number(countRow?.total || 0);
+        const dataParams = [...params, limit, offset];
+        const items = await queryRows(`${projectSelect}${whereSql} GROUP BY p.id, u.username, c.name, c.slug ORDER BY ${orderBy} LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`, dataParams);
+        const totalPages = Math.ceil(total / limit);
+        res.json({ items, total, page, totalPages, hasNext: page < totalPages, hasPrev: page > 1 });
+    } catch (err) { console.error('Project list error:', err); res.status(500).json({ error: 'Gagal mengambil project' }); }
 });
 
-// GET /api/projects/:id - Satu project
-router.get('/:id', async function(req, res) {
-    const db = await getDatabase();
-    const projects = db.exec('SELECT * FROM projects WHERE id = ' + parseInt(req.params.id));
-    if (projects.length > 0 && projects[0].values.length > 0) {
-        const columns = projects[0].columns;
-        const row = projects[0].values[0];
-        let obj = {};
-        columns.forEach((col, i) => obj[col] = row[i]);
-        res.json(obj);
-    } else {
-        res.status(404).json({ error: 'Project tidak ditemukan' });
-    }
-    db.close();
+router.get('/:id', async (req, res) => {
+    const id = projectId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const project = await queryOne(`${projectSelect} WHERE p.id = $1 GROUP BY p.id, u.username, c.name, c.slug`, [id]);
+        if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
+        res.json(project);
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil project' }); }
 });
 
-// GET /api/projects/:id/download
-router.get('/:id/download', async function(req, res) {
-    const db = await getDatabase();
-    const projects = db.exec('SELECT * FROM projects WHERE id = ' + parseInt(req.params.id));
-    if (projects.length === 0 || projects[0].values.length === 0) { db.close(); return res.status(404).json({ error: 'Project tidak ditemukan' }); }
-    const columns = projects[0].columns;
-    const row = projects[0].values[0];
-    let project = {};
-    columns.forEach((col, i) => project[col] = row[i]);
-    if (!project.download_url) { db.close(); return res.status(404).json({ error: 'File tidak tersedia' }); }
-    const filePath = path.join(__dirname, '..', 'uploads', 'files', project.download_url);
-    if (!fs.existsSync(filePath)) { db.close(); return res.status(404).json({ error: 'File tidak ditemukan di server' }); }
-    db.run('UPDATE projects SET downloads = downloads + 1 WHERE id = ' + project.id);
-    saveDatabase(db); db.close();
-    res.download(filePath, project.download_url);
+router.get('/:id/download', async (req, res) => {
+    const id = projectId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const project = await queryOne('SELECT download_url FROM projects WHERE id = $1', [id]);
+        const filename = safeName(project?.download_url);
+        if (!filename) return res.status(404).json({ error: 'File tidak tersedia' });
+        const filePath = path.join(uploadRoot, 'files', filename);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File tidak ditemukan di server' });
+        await run('UPDATE projects SET downloads = downloads + 1, updated_at = NOW() WHERE id = $1', [id]);
+        return res.download(filePath, filename);
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Download gagal' }); }
 });
 
-// PUT /api/projects/:id
-router.put('/:id', authenticateToken, async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const db = await getDatabase();
-    const projects = db.exec('SELECT * FROM projects WHERE id = ' + projectId);
-    if (projects.length === 0 || projects[0].values.length === 0) { db.close(); return res.status(404).json({ error: 'Project tidak ditemukan' }); }
-    const cols = projects[0].columns;
-    const row = projects[0].values[0];
-    let project = {};
-    cols.forEach((col, i) => project[col] = row[i]);
-    if (project.author !== req.user.username) { db.close(); return res.status(403).json({ error: 'Anda bukan pemilik project ini' }); }
-    const { title, description, category, version } = req.body;
-    if (title) db.run('UPDATE projects SET title = ? WHERE id = ' + projectId, [title]);
-    if (description) db.run('UPDATE projects SET description = ? WHERE id = ' + projectId, [description]);
-    if (category) db.run('UPDATE projects SET category = ? WHERE id = ' + projectId, [category]);
-    if (version) db.run('UPDATE projects SET version = ? WHERE id = ' + projectId, [version]);
-    saveDatabase(db); db.close();
-    res.json({ message: 'Project berhasil diupdate!' });
+router.put('/:id', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const project = await queryOne('SELECT * FROM projects WHERE id = $1', [id]);
+        if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
+        if (Number(project.author_id) !== Number(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
+        const allowed = ['title', 'description', 'version', 'edition'];
+        const fields = [], values = [];
+        for (const field of allowed) {
+            if (req.body[field] !== undefined) {
+                const value = String(req.body[field]).trim();
+                if (field === 'title' && (value.length < 2 || value.length > 160)) return res.status(400).json({ error: 'Judul harus 2-160 karakter' });
+                if (field === 'description' && value.length > 10000) return res.status(400).json({ error: 'Deskripsi terlalu panjang' });
+                fields.push(`${field} = $${values.length + 1}`); values.push(value);
+            }
+        }
+        if (!fields.length) return res.status(400).json({ error: 'Tidak ada data yang diubah' });
+        values.push(id);
+        await run(`UPDATE projects SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${values.length}`, values);
+        res.json({ message: 'Project berhasil diupdate!' });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Update project gagal' }); }
 });
 
-// DELETE /api/projects/:id
-router.delete('/:id', authenticateToken, async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const db = await getDatabase();
-    const projects = db.exec('SELECT * FROM projects WHERE id = ' + projectId);
-    if (projects.length === 0 || projects[0].values.length === 0) { db.close(); return res.status(404).json({ error: 'Project tidak ditemukan' }); }
-    const cols = projects[0].columns;
-    const row = projects[0].values[0];
-    let project = {};
-    cols.forEach((col, i) => project[col] = row[i]);
-    if (project.author !== req.user.username) { db.close(); return res.status(403).json({ error: 'Anda bukan pemilik project ini' }); }
-    if (project.download_url) { const fp = path.join(__dirname, '..', 'uploads', 'files', project.download_url); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
-    if (project.thumbnail) { const tp = path.join(__dirname, '..', 'uploads', 'images', project.thumbnail); if (fs.existsSync(tp)) fs.unlinkSync(tp); }
-    db.run('DELETE FROM ratings WHERE project_id = ' + projectId);
-    db.run('DELETE FROM comments WHERE project_id = ' + projectId);
-    db.run('DELETE FROM favorites WHERE project_id = ' + projectId);
-    db.run('DELETE FROM projects WHERE id = ' + projectId);
-    saveDatabase(db); db.close();
-    res.json({ message: 'Project berhasil dihapus!' });
+router.delete('/:id', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const project = await queryOne('SELECT * FROM projects WHERE id = $1', [id]);
+        if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
+        if (Number(project.author_id) !== Number(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
+        const screenshots = await queryRows('SELECT filename FROM project_screenshots WHERE project_id=$1', [id]);
+        await run('DELETE FROM projects WHERE id = $1', [id]);
+        deleteUpload('files', project.download_url);
+        deleteUpload('images', project.thumbnail);
+        screenshots.forEach(s => deleteUpload('images', s.filename));
+        res.json({ message: 'Project berhasil dihapus!' });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Delete project gagal' }); }
 });
 
-// POST /api/projects/:id/rating
-router.post('/:id/rating', authenticateToken, async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const userId = req.user.id;
-    const { rating } = req.body;
-    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating harus 1 sampai 5' });
-    const db = await getDatabase();
-    const existing = db.exec('SELECT id FROM ratings WHERE project_id = ' + projectId + ' AND user_id = ' + userId);
-    if (existing.length > 0 && existing[0].values.length > 0) {
-        db.run('UPDATE ratings SET rating = ' + rating + ' WHERE project_id = ' + projectId + ' AND user_id = ' + userId);
-    } else {
-        db.run('INSERT INTO ratings (project_id, user_id, rating) VALUES (' + projectId + ', ' + userId + ', ' + rating + ')');
-    }
-    saveDatabase(db); db.close();
-    res.json({ message: 'Rating berhasil disimpan!' });
+router.post('/:id/rating', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id), rating = Number(req.body.rating);
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating harus 1 sampai 5' });
+    try { await run('INSERT INTO ratings (project_id, user_id, rating) VALUES ($1,$2,$3) ON CONFLICT (project_id,user_id) DO UPDATE SET rating=EXCLUDED.rating', [id, req.user.id, rating]); res.json({ message: 'Rating berhasil disimpan!' }); }
+    catch (err) { if (err.code === '23503') return res.status(404).json({ error: 'Project tidak ditemukan' }); console.error(err); res.status(500).json({ error: 'Rating gagal disimpan' }); }
 });
 
-// GET /api/projects/:id/rating
-router.get('/:id/rating', async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const db = await getDatabase();
-    const avgResult = db.exec('SELECT AVG(rating) as avg, COUNT(*) as count FROM ratings WHERE project_id = ' + projectId);
-    let avg = 0, count = 0;
-    if (avgResult.length > 0 && avgResult[0].values.length > 0) { const c = avgResult[0].columns; const r = avgResult[0].values[0]; avg = r[c.indexOf('avg')] || 0; count = r[c.indexOf('count')] || 0; }
-    const dist = db.exec('SELECT rating, COUNT(*) as count FROM ratings WHERE project_id = ' + projectId + ' GROUP BY rating');
-    let distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
-    if (dist.length > 0) { const dC = dist[0].columns; dist[0].values.forEach(row => { let o = {}; dC.forEach((col, i) => o[col] = row[i]); distribution[o.rating] = o.count; }); }
-    db.close();
-    res.json({ average: Math.round(avg * 10) / 10, count, distribution });
+router.get('/:id/rating', async (req, res) => {
+    const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const summary = await queryOne('SELECT AVG(rating) AS average, COUNT(*)::int AS count FROM ratings WHERE project_id=$1', [id]);
+        const rows = await queryRows('SELECT rating, COUNT(*)::int AS count FROM ratings WHERE project_id=$1 GROUP BY rating', [id]);
+        const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; rows.forEach(r => distribution[r.rating] = r.count);
+        res.json({ average: Math.round(Number(summary?.average || 0) * 10) / 10, count: Number(summary?.count || 0), distribution });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil rating' }); }
 });
 
-// POST /api/projects/:id/comments
-router.post('/:id/comments', authenticateToken, async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const userId = req.user.id;
-    const { comment } = req.body;
-    if (!comment || comment.trim() === '') return res.status(400).json({ error: 'Komentar tidak boleh kosong' });
-    const db = await getDatabase();
-    db.run('INSERT INTO comments (project_id, user_id, comment) VALUES (?, ?, ?)', [projectId, userId, comment]);
-    saveDatabase(db); db.close();
-    res.status(201).json({ message: 'Komentar berhasil ditambahkan!' });
+router.post('/:id/comments', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id), comment = String(req.body.comment || '').trim();
+    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    if (comment.length < 1 || comment.length > 2000) return res.status(400).json({ error: 'Komentar harus 1-2000 karakter' });
+    try { await run('INSERT INTO comments (project_id,user_id,comment) VALUES ($1,$2,$3)', [id, req.user.id, comment]); res.status(201).json({ message: 'Komentar berhasil ditambahkan!' }); }
+    catch (err) { if (err.code === '23503') return res.status(404).json({ error: 'Project tidak ditemukan' }); console.error(err); res.status(500).json({ error: 'Komentar gagal ditambahkan' }); }
 });
 
-// GET /api/projects/:id/comments
-router.get('/:id/comments', async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const db = await getDatabase();
-    const result = db.exec('SELECT c.id, c.comment, c.created_at, u.username FROM comments c JOIN users u ON c.user_id = u.id WHERE c.project_id = ' + projectId + ' ORDER BY c.created_at DESC');
-    let comments = [];
-    if (result.length > 0) { const cols = result[0].columns; result[0].values.forEach(row => { let obj = {}; cols.forEach((col, i) => obj[col] = row[i]); comments.push(obj); }); }
-    db.close();
-    res.json(comments);
+router.get('/:id/comments', async (req, res) => {
+    const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try { res.json(await queryRows('SELECT c.id,c.comment,c.created_at,u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.project_id=$1 ORDER BY c.created_at DESC', [id])); }
+    catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil komentar' }); }
 });
 
-// POST /api/projects/:id/favorite
-router.post('/:id/favorite', authenticateToken, async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const userId = req.user.id;
-    const db = await getDatabase();
-    const existing = db.exec('SELECT id FROM favorites WHERE project_id = ' + projectId + ' AND user_id = ' + userId);
-    if (existing.length > 0 && existing[0].values.length > 0) {
-        db.run('DELETE FROM favorites WHERE project_id = ' + projectId + ' AND user_id = ' + userId);
-        saveDatabase(db); db.close();
-        return res.json({ favorited: false });
-    } else {
-        db.run('INSERT INTO favorites (user_id, project_id) VALUES (' + userId + ', ' + projectId + ')');
-        saveDatabase(db); db.close();
-        return res.json({ favorited: true });
-    }
+router.post('/:id/favorite', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        if (!(await queryOne('SELECT id FROM projects WHERE id=$1', [id]))) return res.status(404).json({ error: 'Project tidak ditemukan' });
+        const existing = await queryOne('SELECT id FROM favorites WHERE project_id=$1 AND user_id=$2', [id, req.user.id]);
+        if (existing) { await run('DELETE FROM favorites WHERE id=$1', [existing.id]); return res.json({ favorited: false }); }
+        await run('INSERT INTO favorites (user_id,project_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.user.id, id]);
+        res.json({ favorited: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Favorite gagal diubah' }); }
 });
 
-// GET /api/projects/:id/favorite
-router.get('/:id/favorite', async function(req, res) {
-    const projectId = parseInt(req.params.id);
-    const db = await getDatabase();
-    const countResult = db.exec('SELECT COUNT(*) as count FROM favorites WHERE project_id = ' + projectId);
-    let count = 0;
-    if (countResult.length > 0 && countResult[0].values.length > 0) count = countResult[0].values[0][0];
-    db.close();
-    res.json({ count });
+router.get('/:id/favorite', authenticateToken, async (req, res) => {
+    const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    try {
+        const row = await queryOne('SELECT EXISTS(SELECT 1 FROM favorites WHERE project_id=$1 AND user_id=$2) AS favorited, COUNT(*) OVER() AS total FROM favorites WHERE project_id=$1', [id, req.user.id]);
+        const count = await queryOne('SELECT COUNT(*)::int AS count FROM favorites WHERE project_id=$1', [id]);
+        res.json({ favorited: Boolean(row?.favorited), count: Number(count?.count || 0) });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil favorite' }); }
 });
 
 module.exports = router;

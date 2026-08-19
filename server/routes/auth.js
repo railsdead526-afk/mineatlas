@@ -1,133 +1,101 @@
-// ============================================
-// MINEATLAS — ROUTE AUTH (REGISTER & LOGIN)
-// ============================================
-
 const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { getDatabase, saveDatabase } = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
-require('dotenv').config();
+const crypto = require('crypto');
+const { queryOne } = require('../config/database');
 
-// POST /api/auth/register — Daftar akun baru
-router.post('/register', async function(req, res) {
-    const { username, email, password } = req.body;
+const router = express.Router();
 
-    if (!username || !email || !password) {
-        return res.status(400).json({ error: 'Semua field harus diisi' });
-    }
+function jwtSecret() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) throw new Error('JWT_SECRET must be configured and at least 32 characters long');
+    return secret;
+}
 
-    if (password.length < 8) {
-        return res.status(400).json({ error: 'Password minimal 8 karakter' });
-    }
+function cookieOptions() {
+    const production = process.env.NODE_ENV === 'production';
+    return {
+        httpOnly: true,
+        secure: production,
+        sameSite: process.env.COOKIE_SAMESITE || (production ? 'none' : 'lax'),
+        maxAge: 7 * 86400000,
+        path: '/'
+    };
+}
 
-    const db = await getDatabase();
+function csrfCookieOptions() {
+    const production = process.env.NODE_ENV === 'production';
+    return {
+        httpOnly: false,
+        secure: production,
+        sameSite: process.env.COOKIE_SAMESITE || (production ? 'none' : 'lax'),
+        maxAge: 7 * 86400000,
+        path: '/'
+    };
+}
 
-    const existing = db.exec("SELECT id FROM users WHERE email = '" + email + "'");
-    if (existing.length > 0 && existing[0].values.length > 0) {
-        db.close();
-        return res.status(400).json({ error: 'Email sudah terdaftar' });
-    }
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const usernamePattern = /^[a-zA-Z0-9_]{3,24}$/;
 
-    const salt = bcrypt.genSaltSync(10);
-    const hashedPassword = bcrypt.hashSync(password, salt);
-
-    db.run(
-        "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, 'user')",
-        [username, email, hashedPassword]
-    );
-
-    saveDatabase(db);
-    db.close();
-
-    res.status(201).json({ message: 'Pendaftaran berhasil!' });
+router.get('/csrf', (req, res) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrf_token', token, csrfCookieOptions());
+    res.json({ csrfToken: token });
 });
 
-// POST /api/auth/login — Masuk ke akun
-router.post('/login', async function(req, res) {
-    const { email, password } = req.body;
+router.post('/register', async (req, res) => {
+    const username = String(req.body.username || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    if (!username || !email || !password) return res.status(400).json({ error: 'Semua field harus diisi' });
+    if (!usernamePattern.test(username)) return res.status(400).json({ error: 'Username 3-24 karakter, hanya huruf, angka, dan underscore' });
+    if (!emailPattern.test(email) || email.length > 255) return res.status(400).json({ error: 'Format email tidak valid' });
+    if (password.length < 8 || password.length > 128) return res.status(400).json({ error: 'Password harus 8-128 karakter' });
 
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email dan password harus diisi' });
+    try {
+        if (await queryOne('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username])) return res.status(409).json({ error: 'Email atau username sudah terdaftar' });
+        const passwordHash = await bcrypt.hash(password, 12);
+        const user = await queryOne('INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, role', [username, email, passwordHash]);
+        res.status(201).json({ message: 'Pendaftaran berhasil!', user });
+    } catch (err) {
+        console.error('Register error:', err);
+        if (err.code === '23505') return res.status(409).json({ error: 'Email atau username sudah terdaftar' });
+        res.status(500).json({ error: 'Pendaftaran gagal' });
     }
-
-    const db = await getDatabase();
-
-    const result = db.exec("SELECT * FROM users WHERE email = '" + email + "'");
-
-    if (result.length === 0 || result[0].values.length === 0) {
-        db.close();
-        return res.status(401).json({ error: 'Email atau password salah' });
-    }
-
-    const columns = result[0].columns;
-    const row = result[0].values[0];
-    let user = {};
-    columns.forEach((col, i) => user[col] = row[i]);
-
-    const validPassword = bcrypt.compareSync(password, user.password);
-    if (!validPassword) {
-        db.close();
-        return res.status(401).json({ error: 'Email atau password salah' });
-    }
-
-    const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-    );
-
-    db.close();
-
-    // Kirim token di BODY (untuk localStorage) + COOKIE (untuk backend)
-    res.cookie('token', token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    res.json({
-        message: 'Login berhasil!',
-        token: token,
-        user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role
-        }
-    });
 });
 
-// POST /api/auth/logout — Keluar
-router.post('/logout', function(req, res) {
-    res.clearCookie('token', {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none'
-    });
+router.post('/login', async (req, res) => {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    if (!email || !password) return res.status(400).json({ error: 'Email dan password harus diisi' });
+    try {
+        const user = await queryOne('SELECT id, username, email, password_hash, role FROM users WHERE email = $1', [email]);
+        if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Email atau password salah' });
+        const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, jwtSecret(), { expiresIn: '7d', issuer: 'mineatlas' });
+        res.cookie('token', token, cookieOptions());
+        res.json({ message: 'Login berhasil!', user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ error: 'Login gagal' });
+    }
+});
+
+router.post('/logout', (req, res) => {
+    const options = cookieOptions();
+    delete options.maxAge;
+    res.clearCookie('token', options);
     res.json({ message: 'Logout berhasil!' });
 });
 
-// GET /api/auth/me — Cek status login (support Authorization header)
-router.get('/me', function(req, res) {
-    // Cek dari cookie dulu
-    const tokenFromCookie = req.cookies && req.cookies.token;
-    // Atau dari Authorization header
-    const authHeader = req.headers['authorization'];
-    const tokenFromHeader = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    
-    const token = tokenFromCookie || tokenFromHeader;
-    
-    if (!token) {
-        return res.status(401).json({ error: 'Silakan login terlebih dahulu' });
+router.get('/me', (req, res) => {
+    const token = req.cookies?.token;
+    if (!token) return res.status(401).json({ error: 'Silakan login terlebih dahulu' });
+    try {
+        const user = jwt.verify(token, jwtSecret(), { issuer: 'mineatlas' });
+        res.json({ id: user.id, username: user.username, role: user.role });
+    } catch {
+        res.status(401).json({ error: 'Sesi tidak valid atau sudah kedaluwarsa' });
     }
-
-    jwt.verify(token, process.env.JWT_SECRET, function(err, decoded) {
-        if (err) return res.status(403).json({ error: 'Token tidak valid' });
-        res.json({ id: decoded.id, username: decoded.username, role: decoded.role });
-    });
 });
 
 module.exports = router;
