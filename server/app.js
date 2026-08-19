@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -33,6 +34,19 @@ app.use('/api', rateLimit({
     legacyHeaders: false,
     message: { error: 'Terlalu banyak request. Coba lagi nanti.' }
 }));
+
+// Cookie-based auth needs a CSRF defense for cross-site deployments.
+app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (/^\/auth\/(login|register|csrf)$/.test(req.path)) return next();
+    const origin = req.get('origin');
+    if (origin && !origins.includes(origin)) return res.status(403).json({ error: 'Origin tidak diizinkan' });
+    const cookieToken = req.cookies?.csrf_token;
+    const headerToken = req.get('x-csrf-token');
+    if (!cookieToken || !headerToken || cookieToken.length !== headerToken.length) return res.status(403).json({ error: 'CSRF token tidak valid' });
+    if (!crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken))) return res.status(403).json({ error: 'CSRF token tidak valid' });
+    next();
+});
 
 app.use(express.static(clientPath));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { dotfiles: 'deny', index: false, maxAge: '1h' }));
