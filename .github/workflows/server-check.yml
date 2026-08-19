@@ -12,11 +12,30 @@ on:
       - '.github/workflows/server-check.yml'
 
 jobs:
-  syntax:
+  server:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mineatlas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d mineatlas_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     defaults:
       run:
         working-directory: server
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mineatlas_test
+      JWT_SECRET: ci-only-mineatlas-secret-at-least-32-characters-long
+      CLIENT_ORIGINS: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,13 +44,6 @@ jobs:
           cache: npm
           cache-dependency-path: server/package.json
       - run: npm install --ignore-scripts
-      - run: node --check app.js
-      - run: node --check config/database.js
-      - run: node --check middleware/auth.js
-      - run: node --check routes/auth.js
-      - run: node --check routes/categories.js
-      - run: node --check routes/projects.js
-      - run: node --check routes/upload.js
-      - run: node --check routes/users.js
-      - run: node --check database/init.js
-      - run: node --check database/seed.js
+      - run: npm run check
+      - run: npm run db:init
+      - run: node database/smoke.js
