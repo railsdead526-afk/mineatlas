@@ -1,46 +1,40 @@
-// ============================================
-// MINEATLAS — DATABASE CONFIG
-// ============================================
+const { Pool } = require('pg');
 
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
-
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'database', 'mineatlas.db');
-
-async function getDatabase() {
-    const SQL = await initSqlJs();
-    if (fs.existsSync(dbPath)) {
-        return new SQL.Database(fs.readFileSync(dbPath));
-    }
-    return new SQL.Database();
+const required = ['DATABASE_URL'];
+for (const key of required) {
+    if (!process.env[key]) throw new Error(`${key} wajib diisi.`);
 }
 
-function saveDatabase(db) {
-    const dir = path.dirname(dbPath);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(dbPath, Buffer.from(db.export()));
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: Number(process.env.DB_POOL_MAX || 10),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+pool.on('error', err => console.error('PostgreSQL pool error:', err));
+
+async function query(text, params = []) {
+    return pool.query(text, params);
 }
 
-function queryRows(db, sql, params = []) {
-    const stmt = db.prepare(sql);
-    try {
-        stmt.bind(params);
-        const rows = [];
-        while (stmt.step()) rows.push(stmt.getAsObject());
-        return rows;
-    } finally {
-        stmt.free();
-    }
+async function queryRows(text, params = []) {
+    const result = await pool.query(text, params);
+    return result.rows;
 }
 
-function queryOne(db, sql, params = []) {
-    const rows = queryRows(db, sql, params);
-    return rows.length ? rows[0] : null;
+async function queryOne(text, params = []) {
+    const result = await pool.query(text, params);
+    return result.rows[0] || null;
 }
 
-function run(db, sql, params = []) {
-    db.run(sql, params);
+async function run(text, params = []) {
+    return pool.query(text, params);
 }
 
-module.exports = { getDatabase, saveDatabase, queryRows, queryOne, run };
+async function closeDatabase() {
+    await pool.end();
+}
+
+module.exports = { pool, query, queryRows, queryOne, run, closeDatabase };
