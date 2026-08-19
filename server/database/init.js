@@ -1,19 +1,17 @@
-const { getDatabase, saveDatabase } = require('../config/database');
+require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const { query, closeDatabase } = require('../config/database');
 
 async function init() {
-    const db = await getDatabase();
-    
-    console.log('Membuat tabel...');
-    
-    db.run(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, email TEXT NOT NULL UNIQUE, password TEXT NOT NULL, avatar TEXT, role TEXT DEFAULT 'user', created_at TEXT DEFAULT (datetime('now')))`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE)`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, description TEXT, category TEXT NOT NULL, edition TEXT NOT NULL, version TEXT, author TEXT, thumbnail TEXT, download_url TEXT, downloads INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`);
-    
-    saveDatabase(db);
-    console.log('Tabel berhasil dibuat.');
-    db.close();
+    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+    await query(schema);
+    console.log('PostgreSQL schema MineAtlas siap.');
+    await closeDatabase();
 }
 
-init().catch(err => console.error(err));
+init().catch(async err => {
+    console.error('Database initialization failed:', err);
+    try { await closeDatabase(); } catch {}
+    process.exit(1);
+});
