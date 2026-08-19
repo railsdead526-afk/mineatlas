@@ -1,7 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { queryOne, run } = require('../config/database');
+const crypto = require('crypto');
+const { queryOne } = require('../config/database');
 
 const router = express.Router();
 
@@ -12,11 +13,35 @@ function jwtSecret() {
 }
 
 function cookieOptions() {
-    return { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.COOKIE_SAMESITE || 'lax', maxAge: 7 * 86400000, path: '/' };
+    const production = process.env.NODE_ENV === 'production';
+    return {
+        httpOnly: true,
+        secure: production,
+        sameSite: process.env.COOKIE_SAMESITE || (production ? 'none' : 'lax'),
+        maxAge: 7 * 86400000,
+        path: '/'
+    };
+}
+
+function csrfCookieOptions() {
+    const production = process.env.NODE_ENV === 'production';
+    return {
+        httpOnly: false,
+        secure: production,
+        sameSite: process.env.COOKIE_SAMESITE || (production ? 'none' : 'lax'),
+        maxAge: 7 * 86400000,
+        path: '/'
+    };
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[a-zA-Z0-9_]{3,24}$/;
+
+router.get('/csrf', (req, res) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrf_token', token, csrfCookieOptions());
+    res.json({ csrfToken: token });
+});
 
 router.post('/register', async (req, res) => {
     const username = String(req.body.username || '').trim();
