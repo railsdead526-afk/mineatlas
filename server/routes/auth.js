@@ -1,13 +1,8 @@
-// ============================================
-// MINEATLAS — ROUTE AUTH
-// ============================================
-
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { getDatabase, saveDatabase, queryOne, run } = require('../config/database');
-require('dotenv').config();
+const { queryOne, run } = require('../config/database');
 
 function getJwtSecret() {
     const secret = process.env.JWT_SECRET;
@@ -15,56 +10,51 @@ function getJwtSecret() {
     return secret;
 }
 
-function cookieOptions() {
-    return {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/'
-    };
-}
+const cookieOptions = () => ({
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/'
+});
 
-function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
-function normalizeUsername(value) { return String(value || '').trim(); }
+const emailOf = value => String(value || '').trim().toLowerCase();
+const usernameOf = value => String(value || '').trim();
 
 router.post('/register', async (req, res) => {
-    const username = normalizeUsername(req.body.username);
-    const email = normalizeEmail(req.body.email);
+    const username = usernameOf(req.body.username);
+    const email = emailOf(req.body.email);
     const password = String(req.body.password || '');
-    if (!username || !email || !password) return res.status(400).json({ error: 'Semua field harus diisi' });
-    if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) return res.status(400).json({ error: 'Username 3-24 karakter, hanya huruf, angka, dan underscore' });
+    if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) return res.status(400).json({ error: 'Username tidak valid' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Format email tidak valid' });
     if (password.length < 8 || password.length > 128) return res.status(400).json({ error: 'Password harus 8-128 karakter' });
-
-    const db = await getDatabase();
     try {
-        if (queryOne(db, 'SELECT id FROM users WHERE email = ? OR username = ?', [email, username])) return res.status(409).json({ error: 'Email atau username sudah terdaftar' });
-        const hashedPassword = await bcrypt.hash(password, 12);
-        run(db, 'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)', [username, email, hashedPassword, 'user']);
-        saveDatabase(db);
-        res.status(201).json({ message: 'Pendaftaran berhasil!' });
+        const existing = await queryOne('SELECT id FROM users WHERE email = $1 OR username = $2 LIMIT 1', [email, username]);
+        if (existing) return res.status(409).json({ error: 'Email atau username sudah terdaftar' });
+        const passwordHash = await bcrypt.hash(password, 12);
+        const user = await queryOne('INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, role', [username, email, passwordHash]);
+        res.status(201).json({ message: 'Pendaftaran berhasil!', user });
     } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ error: 'Email atau username sudah terdaftar' });
         console.error('Register error:', err);
         res.status(500).json({ error: 'Pendaftaran gagal' });
-    } finally { db.close(); }
+    }
 });
 
 router.post('/login', async (req, res) => {
-    const email = normalizeEmail(req.body.email);
+    const email = emailOf(req.body.email);
     const password = String(req.body.password || '');
     if (!email || !password) return res.status(400).json({ error: 'Email dan password harus diisi' });
-    const db = await getDatabase();
     try {
-        const user = queryOne(db, 'SELECT id, username, email, password, role FROM users WHERE email = ?', [email]);
-        if (!user || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Email atau password salah' });
+        const user = await queryOne('SELECT id, username, email, password_hash, role FROM users WHERE email = $1 LIMIT 1', [email]);
+        if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Email atau password salah' });
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, getJwtSecret(), { expiresIn: '7d', issuer: 'mineatlas' });
         res.cookie('token', token, cookieOptions());
         res.json({ message: 'Login berhasil!', user: { id: user.id, username: user.username, email: user.email, role: user.role } });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ error: 'Login gagal' });
-    } finally { db.close(); }
+    }
 });
 
 router.post('/logout', (req, res) => {
@@ -75,7 +65,7 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', (req, res) => {
-    const token = req.cookies && req.cookies.token;
+    const token = req.cookies?.token;
     if (!token) return res.status(401).json({ error: 'Silakan login terlebih dahulu' });
     try {
         const decoded = jwt.verify(token, getJwtSecret(), { issuer: 'mineatlas' });
