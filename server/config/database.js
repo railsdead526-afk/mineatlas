@@ -1,34 +1,46 @@
 // ============================================
-// MINEATLAS — DATABASE CONFIG (sql.js)
+// MINEATLAS — DATABASE CONFIG
 // ============================================
 
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '..', 'database', 'mineatlas.db');
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'database', 'mineatlas.db');
 
-// Fungsi untuk mendapatkan database
 async function getDatabase() {
     const SQL = await initSqlJs();
-    
-    let db;
     if (fs.existsSync(dbPath)) {
-        const buffer = fs.readFileSync(dbPath);
-        db = new SQL.Database(buffer);
-    } else {
-        db = new SQL.Database();
+        return new SQL.Database(fs.readFileSync(dbPath));
     }
-    
-    console.log('Database terhubung');
-    return db;
+    return new SQL.Database();
 }
 
-// Fungsi untuk menyimpan database ke file
 function saveDatabase(db) {
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+    const dir = path.dirname(dbPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(dbPath, Buffer.from(db.export()));
 }
 
-module.exports = { getDatabase, saveDatabase };
+function queryRows(db, sql, params = []) {
+    const stmt = db.prepare(sql);
+    try {
+        stmt.bind(params);
+        const rows = [];
+        while (stmt.step()) rows.push(stmt.getAsObject());
+        return rows;
+    } finally {
+        stmt.free();
+    }
+}
+
+function queryOne(db, sql, params = []) {
+    const rows = queryRows(db, sql, params);
+    return rows.length ? rows[0] : null;
+}
+
+function run(db, sql, params = []) {
+    db.run(sql, params);
+}
+
+module.exports = { getDatabase, saveDatabase, queryRows, queryOne, run };
