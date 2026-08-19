@@ -28,7 +28,9 @@ const projectSelect = `
            c.name AS category_name, c.slug AS category_slug,
            COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0) AS rating,
            COUNT(DISTINCT r.id)::int AS rating_count,
-           COUNT(DISTINCT f.id)::int AS favorite_count
+           COUNT(DISTINCT f.id)::int AS favorite_count,
+           COALESCE((SELECT json_agg(ps.filename ORDER BY ps.sort_order)
+                     FROM project_screenshots ps WHERE ps.project_id = p.id), '[]'::json) AS screenshots
     FROM projects p
     LEFT JOIN users u ON u.id = p.author_id
     LEFT JOIN categories c ON c.id = p.category_id
@@ -45,17 +47,13 @@ router.get('/', async (req, res) => {
         const page = pagination(req.query.page, 1, 1000000);
         const limit = pagination(req.query.limit, 20, 100);
         const offset = (page - 1) * limit;
-        const where = [];
-        const params = [];
+        const where = [], params = [];
         if (q) { params.push(`%${q}%`); where.push(`(p.title ILIKE $${params.length} OR p.description ILIKE $${params.length})`); }
         if (category) { params.push(category); where.push(`c.slug = $${params.length}`); }
         if (version) { params.push(version); where.push(`p.version = $${params.length}`); }
         if (author) { params.push(author); where.push(`u.username = $${params.length}`); }
         const whereSql = where.length ? ` WHERE ${where.join(' AND ')}` : '';
-        const sorts = {
-            oldest: 'p.created_at ASC', downloads: 'p.downloads DESC',
-            rating: 'COALESCE(AVG(r.rating), 0) DESC', newest: 'p.created_at DESC'
-        };
+        const sorts = { oldest: 'p.created_at ASC', downloads: 'p.downloads DESC', rating: 'COALESCE(AVG(r.rating), 0) DESC', newest: 'p.created_at DESC' };
         const orderBy = sorts[String(req.query.sort || 'newest')] || sorts.newest;
         const countRow = await queryOne(`SELECT COUNT(*)::int AS total FROM projects p LEFT JOIN users u ON u.id=p.author_id LEFT JOIN categories c ON c.id=p.category_id${whereSql}`, params);
         const total = Number(countRow?.total || 0);
@@ -63,10 +61,7 @@ router.get('/', async (req, res) => {
         const items = await queryRows(`${projectSelect}${whereSql} GROUP BY p.id, u.username, c.name, c.slug ORDER BY ${orderBy} LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`, dataParams);
         const totalPages = Math.ceil(total / limit);
         res.json({ items, total, page, totalPages, hasNext: page < totalPages, hasPrev: page > 1 });
-    } catch (err) {
-        console.error('Project list error:', err);
-        res.status(500).json({ error: 'Gagal mengambil project' });
-    }
+    } catch (err) { console.error('Project list error:', err); res.status(500).json({ error: 'Gagal mengambil project' }); }
 });
 
 router.get('/:id', async (req, res) => {
@@ -99,7 +94,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const project = await queryOne('SELECT * FROM projects WHERE id = $1', [id]);
         if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
-        if (project.author_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
+        if (Number(project.author_id) !== Number(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
         const allowed = ['title', 'description', 'version', 'edition'];
         const fields = [], values = [];
         for (const field of allowed) {
@@ -123,10 +118,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     try {
         const project = await queryOne('SELECT * FROM projects WHERE id = $1', [id]);
         if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
-        if (project.author_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
+        if (Number(project.author_id) !== Number(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Anda bukan pemilik project ini' });
+        const screenshots = await queryRows('SELECT filename FROM project_screenshots WHERE project_id=$1', [id]);
         await run('DELETE FROM projects WHERE id = $1', [id]);
         deleteUpload('files', project.download_url);
         deleteUpload('images', project.thumbnail);
+        screenshots.forEach(s => deleteUpload('images', s.filename));
         res.json({ message: 'Project berhasil dihapus!' });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Delete project gagal' }); }
 });
@@ -135,18 +132,15 @@ router.post('/:id/rating', authenticateToken, async (req, res) => {
     const id = projectId(req.params.id), rating = Number(req.body.rating);
     if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating harus 1 sampai 5' });
-    try {
-        await run(`INSERT INTO ratings (project_id, user_id, rating) VALUES ($1, $2, $3) ON CONFLICT (project_id, user_id) DO UPDATE SET rating = EXCLUDED.rating`, [id, req.user.id, rating]);
-        res.json({ message: 'Rating berhasil disimpan!' });
-    } catch (err) { if (err.code === '23503') return res.status(404).json({ error: 'Project tidak ditemukan' }); console.error(err); res.status(500).json({ error: 'Rating gagal disimpan' }); }
+    try { await run('INSERT INTO ratings (project_id, user_id, rating) VALUES ($1,$2,$3) ON CONFLICT (project_id,user_id) DO UPDATE SET rating=EXCLUDED.rating', [id, req.user.id, rating]); res.json({ message: 'Rating berhasil disimpan!' }); }
+    catch (err) { if (err.code === '23503') return res.status(404).json({ error: 'Project tidak ditemukan' }); console.error(err); res.status(500).json({ error: 'Rating gagal disimpan' }); }
 });
 
 router.get('/:id/rating', async (req, res) => {
-    const id = projectId(req.params.id);
-    if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
+    const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
     try {
-        const summary = await queryOne('SELECT AVG(rating) AS average, COUNT(*)::int AS count FROM ratings WHERE project_id = $1', [id]);
-        const rows = await queryRows('SELECT rating, COUNT(*)::int AS count FROM ratings WHERE project_id = $1 GROUP BY rating', [id]);
+        const summary = await queryOne('SELECT AVG(rating) AS average, COUNT(*)::int AS count FROM ratings WHERE project_id=$1', [id]);
+        const rows = await queryRows('SELECT rating, COUNT(*)::int AS count FROM ratings WHERE project_id=$1 GROUP BY rating', [id]);
         const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; rows.forEach(r => distribution[r.rating] = r.count);
         res.json({ average: Math.round(Number(summary?.average || 0) * 10) / 10, count: Number(summary?.count || 0), distribution });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil rating' }); }
@@ -156,32 +150,34 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
     const id = projectId(req.params.id), comment = String(req.body.comment || '').trim();
     if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
     if (comment.length < 1 || comment.length > 2000) return res.status(400).json({ error: 'Komentar harus 1-2000 karakter' });
-    try { await run('INSERT INTO comments (project_id, user_id, comment) VALUES ($1, $2, $3)', [id, req.user.id, comment]); res.status(201).json({ message: 'Komentar berhasil ditambahkan!' }); }
+    try { await run('INSERT INTO comments (project_id,user_id,comment) VALUES ($1,$2,$3)', [id, req.user.id, comment]); res.status(201).json({ message: 'Komentar berhasil ditambahkan!' }); }
     catch (err) { if (err.code === '23503') return res.status(404).json({ error: 'Project tidak ditemukan' }); console.error(err); res.status(500).json({ error: 'Komentar gagal ditambahkan' }); }
 });
 
 router.get('/:id/comments', async (req, res) => {
     const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
-    try { res.json(await queryRows('SELECT c.id, c.comment, c.created_at, u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.project_id=$1 ORDER BY c.created_at DESC', [id])); }
+    try { res.json(await queryRows('SELECT c.id,c.comment,c.created_at,u.username FROM comments c JOIN users u ON u.id=c.user_id WHERE c.project_id=$1 ORDER BY c.created_at DESC', [id])); }
     catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil komentar' }); }
 });
 
 router.post('/:id/favorite', authenticateToken, async (req, res) => {
     const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
     try {
-        const project = await queryOne('SELECT id FROM projects WHERE id=$1', [id]);
-        if (!project) return res.status(404).json({ error: 'Project tidak ditemukan' });
+        if (!(await queryOne('SELECT id FROM projects WHERE id=$1', [id]))) return res.status(404).json({ error: 'Project tidak ditemukan' });
         const existing = await queryOne('SELECT id FROM favorites WHERE project_id=$1 AND user_id=$2', [id, req.user.id]);
         if (existing) { await run('DELETE FROM favorites WHERE id=$1', [existing.id]); return res.json({ favorited: false }); }
-        await run('INSERT INTO favorites (user_id, project_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, id]);
+        await run('INSERT INTO favorites (user_id,project_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.user.id, id]);
         res.json({ favorited: true });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Favorite gagal diubah' }); }
 });
 
-router.get('/:id/favorite', async (req, res) => {
+router.get('/:id/favorite', authenticateToken, async (req, res) => {
     const id = projectId(req.params.id); if (!id) return res.status(400).json({ error: 'ID project tidak valid' });
-    try { const row = await queryOne('SELECT COUNT(*)::int AS count FROM favorites WHERE project_id=$1', [id]); res.json({ count: Number(row?.count || 0) }); }
-    catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil favorite' }); }
+    try {
+        const row = await queryOne('SELECT EXISTS(SELECT 1 FROM favorites WHERE project_id=$1 AND user_id=$2) AS favorited, COUNT(*) OVER() AS total FROM favorites WHERE project_id=$1', [id, req.user.id]);
+        const count = await queryOne('SELECT COUNT(*)::int AS count FROM favorites WHERE project_id=$1', [id]);
+        res.json({ favorited: Boolean(row?.favorited), count: Number(count?.count || 0) });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Gagal mengambil favorite' }); }
 });
 
 module.exports = router;
