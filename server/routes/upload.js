@@ -3,7 +3,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const { pool, queryOne } = require('../config/database');
+const { queryOne, transaction } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -35,11 +35,14 @@ const upload = multer({
 function slugify(value) {
     return String(value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'project';
 }
+
 async function uniqueSlug(client, base) {
-    let slug = base, n = 2;
+    let slug = base;
+    let n = 2;
     while ((await client.query('SELECT id FROM projects WHERE slug=$1', [slug])).rowCount) slug = `${base}-${n++}`;
     return slug;
 }
+
 function cleanup(items) {
     for (const item of items) {
         if (item?.path && fs.existsSync(item.path)) {
@@ -48,62 +51,58 @@ function cleanup(items) {
     }
 }
 
-router.post('/', authenticateToken, (req, res, next) => {
+router.post('/', authenticateToken, (req, res) => {
     upload.fields([
         { name: 'file', maxCount: 1 },
         { name: 'thumbnail', maxCount: 1 },
         { name: 'screenshots', maxCount: 5 }
-    ])(req, res, err => {
+    ])(req, res, async err => {
         if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: err.message || 'Upload tidak valid' });
-        next();
-    });
-}, async (req, res) => {
-    const title = String(req.body.title || '').trim();
-    const description = String(req.body.description || '').trim();
-    const categorySlug = String(req.body.category || '').trim();
-    const version = String(req.body.version || '').trim();
-    const edition = String(req.body.edition || 'Java Edition').trim();
-    const file = req.files?.file?.[0];
-    const thumbnail = req.files?.thumbnail?.[0];
-    const screenshots = req.files?.screenshots || [];
-    const uploaded = [file, thumbnail, ...screenshots];
 
-    if (title.length < 2 || title.length > 160 || description.length < 10 || description.length > 10000 || version.length > 40 || edition.length > 40 || !categorySlug || !file) {
-        cleanup(uploaded);
-        return res.status(400).json({ error: 'Data project tidak valid atau file belum diupload' });
-    }
+        const title = String(req.body.title || '').trim();
+        const description = String(req.body.description || '').trim();
+        const categorySlug = String(req.body.category || '').trim();
+        const version = String(req.body.version || '').trim();
+        const edition = String(req.body.edition || 'Java Edition').trim();
+        const file = req.files?.file?.[0];
+        const thumbnail = req.files?.thumbnail?.[0];
+        const screenshots = req.files?.screenshots || [];
+        const allFiles = [file, thumbnail, ...screenshots];
 
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const category = await client.query('SELECT id FROM categories WHERE slug=$1', [categorySlug]);
-        if (!category.rowCount) throw Object.assign(new Error('Kategori tidak ditemukan'), { status: 400 });
-
-        const slug = await uniqueSlug(client, slugify(title));
-        const projectResult = await client.query(
-            `INSERT INTO projects (title, slug, description, category_id, edition, version, author_id, thumbnail, download_url)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, slug`,
-            [title, slug, description, category.rows[0].id, edition, version || null, req.user.id, thumbnail?.filename || null, file.filename]
-        );
-        const project = projectResult.rows[0];
-
-        for (let i = 0; i < screenshots.length; i++) {
-            await client.query(
-                'INSERT INTO project_screenshots (project_id, filename, sort_order) VALUES ($1,$2,$3)',
-                [project.id, screenshots[i].filename, i]
-            );
+        if (title.length < 2 || title.length > 160 || description.length < 10 || description.length > 10000 || version.length > 40 || edition.length > 40 || !categorySlug || !file) {
+            cleanup(allFiles);
+            return res.status(400).json({ error: 'Data project tidak valid atau file belum diupload' });
         }
 
-        await client.query('COMMIT');
-        res.status(201).json({ message: 'Project berhasil diupload!', project, screenshots: screenshots.map(s => s.filename) });
-    } catch (err) {
-        try { await client.query('ROLLBACK'); } catch {}
-        cleanup(uploaded);
-        console.error('Upload error:', err);
-        res.status(err.status || 500).json({ error: err.status ? err.message : 'Upload gagal' });
-    } finally {
-        client.release();
-    }
+        try {
+            const project = await transaction(async client => {
+                const category = await client.query('SELECT id FROM categories WHERE slug=$1', [categorySlug]);
+                if (!category.rowCount) throw Object.assign(new Error('Kategori tidak ditemukan'), { status: 400 });
+
+                const slug = await uniqueSlug(client, slugify(title));
+                const inserted = await client.query(
+                    `INSERT INTO projects (title, slug, description, category_id, edition, version, author_id, thumbnail, download_url)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                     RETURNING id, slug`,
+                    [title, slug, description, category.rows[0].id, edition, version || null, req.user.id, thumbnail?.filename || null, file.filename]
+                );
+
+                for (let i = 0; i < screenshots.length; i++) {
+                    await client.query(
+                        'INSERT INTO project_screenshots (project_id, filename, sort_order) VALUES ($1,$2,$3)',
+                        [inserted.rows[0].id, screenshots[i].filename, i]
+                    );
+                }
+                return inserted.rows[0];
+            });
+
+            res.status(201).json({ message: 'Project berhasil diupload!', project });
+        } catch (err) {
+            console.error('Upload error:', err);
+            cleanup(allFiles);
+            res.status(err.status || 500).json({ error: err.status ? err.message : 'Upload gagal' });
+        }
+    });
 });
 
 module.exports = router;
