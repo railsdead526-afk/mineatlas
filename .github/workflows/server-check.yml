@@ -1,0 +1,37 @@
+name: MineAtlas server checks
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-check.yml'
+  push:
+    branches: [main, phase1-hardening]
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-check.yml'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package.json
+      - run: npm install --ignore-scripts
+      - run: node --check app.js
+      - run: node --check config/database.js
+      - run: node --check middleware/auth.js
+      - run: node --check routes/auth.js
+      - run: node --check routes/categories.js
+      - run: node --check routes/projects.js
+      - run: node --check routes/upload.js
+      - run: node --check routes/users.js
+      - run: node --check database/init.js
+      - run: node --check database/seed.js
