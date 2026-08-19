@@ -26,9 +26,17 @@ CREATE TABLE IF NOT EXISTS projects (
   author_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   thumbnail TEXT,
   download_url TEXT,
-  downloads BIGINT NOT NULL DEFAULT 0,
+  downloads BIGINT NOT NULL DEFAULT 0 CHECK (downloads >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS project_screenshots (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  sort_order SMALLINT NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS ratings (
@@ -60,6 +68,8 @@ CREATE TABLE IF NOT EXISTS favorites (
 CREATE INDEX IF NOT EXISTS idx_projects_category ON projects(category_id);
 CREATE INDEX IF NOT EXISTS idx_projects_author ON projects(author_id);
 CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_downloads ON projects(downloads DESC);
 CREATE INDEX IF NOT EXISTS idx_ratings_project ON ratings(project_id);
 CREATE INDEX IF NOT EXISTS idx_comments_project ON comments(project_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_screenshots_project ON project_screenshots(project_id, sort_order);
